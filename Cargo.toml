@@ -3,4 +3,14 @@ name = "project_euler"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+
 [dependencies]
+itertools = { version = "*" }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["real_blackbox"] }
+
+[[bench]]
+name = "bench"
+harness = false

@@ -1,10 +1,217 @@
-#![feature(iter_map_windows)]
+/// ```
+/// assert_eq!(project_euler::twenty::_20(), 648);
+/// ```
+pub fn _20() -> usize {
+    // Same as 16 but instead of "* 2" do a factorial
+    let mut num = vec![1];
 
-fn main() {
-    _13();
+    for factorial in 1..=100 {
+        let mut carry = 0;
+        for d in num.iter_mut() {
+            *d = *d * factorial + carry;
+            carry = *d / 10;
+            *d %= 10;
+        }
+        while carry > 0 {
+            num.push(carry % 10);
+            carry /= 10;
+        }
+    }
+
+    num.iter().sum()
 }
 
-fn _13() -> String {
+/// ```
+/// assert_eq!(project_euler::twenty::_18(), 1074);
+/// ```
+pub fn _18() -> usize {
+    // We can start at the bottom and work our way up
+    //    2
+    //  8   5
+    // At the bottom the way we maximise our total is by choosing 8 over 5 and this would
+    // be the globally optimal choice since there's no more choices to make
+    // I claim that we can propagate this optimal sum all the way to the top of the tree and get
+    // the result needed.
+    //  2 4 6             10 13 15         (10 = 2 + max(8,5), 13 = 4 + max(5,9), ...)
+    // 8 5 9 3  Becomes  _  _  _  _
+    // This reduces the tree depth by one and preserves our ability to choose the correct path.
+    //
+    // Index of the start of each line is given by triangle numbers: 0, 1, 3, 6, ...
+    let tree_raw = "\
+    75
+    95 64
+    17 47 82
+    18 35 87 10
+    20 04 82 47 65
+    19 01 23 75 03 34
+    88 02 77 73 07 63 67
+    99 65 04 28 06 16 70 92
+    41 41 26 56 83 40 80 70 33
+    41 48 72 33 47 32 37 16 94 29
+    53 71 44 65 25 43 91 52 97 51 14
+    70 11 33 28 77 73 17 78 39 68 17 57
+    91 71 52 38 17 14 91 43 58 50 27 29 48
+    63 66 04 68 89 53 67 30 73 16 69 87 40 31
+    04 62 98 27 23 09 70 98 73 93 38 53 60 04 23";
+
+    let height = tree_raw.lines().count();
+
+    let mut tree = tree_raw
+        .split_whitespace()
+        .map(|str| str.parse().unwrap())
+        .collect::<Vec<usize>>();
+
+    let t = |n: usize| -> usize { n * (n + 1) / 2 }; // Triangle number formula
+
+    for level in (1..height).rev() {
+        let start = t(level - 1);
+        let end = t(level);
+        for upper_level_index in start..end {
+            // We can get the index of the number below us by going ahead by the length of this row
+            let lower_level_index = upper_level_index + level;
+            tree[upper_level_index] += tree[lower_level_index].max(tree[lower_level_index + 1]);
+        }
+    }
+
+    tree[0]
+}
+
+/// ```
+/// assert_eq!(project_euler::twenty::_17(), 21124);
+/// ```
+pub fn _17() -> usize {
+    (1..=1000).map(number_to_word_length).sum()
+}
+
+#[allow(dead_code)]
+pub fn number_to_word_length(x: usize) -> usize {
+    match x {
+        0 => 0,  //
+        1 => 3,  // one
+        2 => 3,  // two
+        3 => 5,  // three
+        4 => 4,  // four
+        5 => 4,  // five
+        6 => 3,  // six
+        7 => 5,  // seven
+        8 => 5,  // eight
+        9 => 4,  // nine
+        10 => 3, // ten
+        11 => 6, // eleven
+        12 => 6, // twelve
+        13 => 8, // thirteen
+        14 => 8, // fourteen
+        15 => 7, // fifteen
+        16 => 7, // sixteen
+        17 => 9, // seventeen
+        18 => 8, // eighteen
+        19 => 8, // nineteen
+        20 => 6, // twenty
+        30 => 6, // thirty
+        40 => 5, // forty
+        50 => 5, // fifty
+        60 => 5, // sixty
+        70 => 7, // seventy
+        80 => 6, // eighty
+        90 => 6, // ninety
+        21..100 => number_to_word_length(x - (x % 10)) + number_to_word_length(x % 10),
+        100..1000 => {
+            number_to_word_length(x / 100)
+                + 7 // 7 -> hundred
+                + if x % 100 == 0 { 0 } else { 3 } // Add "and" if not "x00".
+                + number_to_word_length(x % 100)
+        }
+        1000 => 11,
+        _ => unreachable!(),
+    }
+}
+
+/// ```
+/// assert_eq!(project_euler::twenty::_16(), 1366);
+/// ```
+pub fn _16() -> usize {
+    // 2^1000 is ~300 digits long and far too big for even u128 for obvious reasons
+    // Store the digits in a vec and implement naive multiply and carry over this vec
+    let mut num = vec![1];
+
+    for _ in 1..=1000 {
+        let mut carry = 0;
+        for d in num.iter_mut() {
+            *d = *d * 2 + carry;
+            carry = *d / 10;
+            *d %= 10;
+        }
+        while carry > 0 {
+            num.push(carry % 10);
+            carry /= 10;
+        }
+    }
+
+    num.iter().sum()
+}
+
+/// ```
+/// assert_eq!(project_euler::twenty::_15(), 137846528820);
+/// ```
+pub fn _15() -> usize {
+    // Just a combinatorics problem
+    // There are a total of 20 moves to the right plus 20 moves down
+    // And we're choosing 20 of them. So the answer is (20+20)C(20)
+    // Using the formula in factorials it can be seen this is 40!/(20!*20!) or simply
+    // 40 * 39 * ... * 21 / 20!
+
+    // (21..=40).product::<usize>() / (1..=20).product::<usize>() <- This overflows
+    (1..=20)
+        .map(|x| (x + 20) as f64 / x as f64)
+        .product::<f64>()
+        .round() as usize
+}
+
+/// ```
+/// assert_eq!(project_euler::twenty::_14(), 837799);
+/// ```
+pub fn _14() -> usize {
+    let mut cache = vec![-1; 1_000_000];
+    cache[1] = 0;
+    let mut max = 0;
+
+    for i in 1..1_000_000usize {
+        let mut chain = 0;
+        let mut n = i;
+
+        loop {
+            if n < 1_000_000 {
+                match cache[n] {
+                    -1 => {}
+                    hit => {
+                        chain += hit;
+                        break;
+                    }
+                }
+            }
+
+            n = if n % 2 == 0 { n / 2 } else { 3 * n + 1 };
+
+            chain += 1;
+        }
+
+        cache[i] = chain;
+
+        max = max.max(chain);
+    }
+
+    cache
+        .iter()
+        .enumerate()
+        .max_by(|x, y| x.1.cmp(y.1))
+        .unwrap()
+        .0
+}
+
+/// ```
+/// assert_eq!(project_euler::twenty::_13(), "5537376230");
+/// ```
+pub fn _13() -> String {
     const NUMS: &str = "37107287533902102798797998220837590246510135740250
     46376937677490009712648124896970078050417018260538
     74324986199524741059474233309513058123726617309629
@@ -121,7 +328,10 @@ fn _13() -> String {
         .to_owned()
 }
 
-fn _12() -> u32 {
+/// ```
+/// assert_eq!(project_euler::twenty::_12(), 76576500);
+/// ```
+pub fn _12() -> u32 {
     // Triangle numbers are given by: T(n) = n * (n + 1)/2
     // So the number of divisors can be more easily found by multiplying the number of divisors of n and n + 1, placing the /2 where necessary
     // Since n and n + 1 share no divisors
@@ -151,8 +361,10 @@ fn _12() -> u32 {
     // Loop never exits unless we return. Surprised the compiler can't see this
     unreachable!();
 }
-
-fn _11() -> u32 {
+/// ```
+/// assert_eq!(project_euler::twenty::_11(), 70600674);
+/// ```
+pub fn _11() -> u32 {
     const GRID_RAW: &str = "08 02 22 97 38 15 00 40 00 75 04 05 07 78 52 12 50 77 91 08
 49 49 99 40 17 81 18 57 60 87 17 40 98 43 69 48 04 56 62 00
 81 49 31 73 55 79 14 29 93 71 40 67 53 88 30 03 49 13 36 65
@@ -224,7 +436,10 @@ fn _11() -> u32 {
     max
 }
 
-fn _10() -> usize {
+/// ```
+/// assert_eq!(project_euler::twenty::_10(), 142913828922);
+/// ```
+pub fn _10() -> usize {
     const N: usize = 2_000_000;
 
     let mut sieve = vec![true; N];
@@ -254,7 +469,10 @@ fn _10() -> usize {
     sum_of_primes
 }
 
-fn _9() -> usize {
+/// ```
+/// assert_eq!(project_euler::twenty::_9(), 31875000);
+/// ```
+pub fn _9() -> usize {
     for a in (1..500).rev() {
         for b in (1..500).rev() {
             let c = 1000 - a - b;
@@ -271,7 +489,10 @@ fn _9() -> usize {
     panic!("Failed to find pythagorean triple");
 }
 
-fn _8() -> u64 {
+/// ```
+/// assert_eq!(project_euler::twenty::_8(), 23514624000);
+/// ```
+pub fn _8() -> u64 {
     const NUM: &str = "73167176531330624919225119674426574742355349194934\
     96983520312774506326239578318016984801869478851843\
     85861560789112949495459501737958331952853208805511\
@@ -304,7 +525,10 @@ fn _8() -> u64 {
         .expect("No maximum??")
 }
 
-fn _7() -> usize {
+/// ```
+/// assert_eq!(project_euler::twenty::_7(), 104743);
+/// ```
+pub fn _7() -> usize {
     const N: usize = 10_001;
     let n: f32 = N as f32;
     // https://en.wikipedia.org/wiki/Prime_number_theorem#Approximations_for_the_nth_prime_number
@@ -336,7 +560,10 @@ fn _7() -> usize {
         .0
 }
 
-fn _6() -> i32 {
+/// ```
+/// assert_eq!(project_euler::twenty::_6(), 25164150);
+/// ```
+pub fn _6() -> i32 {
     let n: i32 = 100;
     let sum_of_squares = n * (n + 1) * (2 * n + 1) / 6;
     let square_of_sum = (n * (n + 1) / 2).pow(2);
@@ -344,7 +571,10 @@ fn _6() -> i32 {
     square_of_sum - sum_of_squares
 }
 
-fn _5() -> i32 {
+/// ```
+/// assert_eq!(project_euler::twenty::_5(), 232792560);
+/// ```
+pub fn _5() -> i32 {
     const PRIMES: [i32; 8] = [2, 3, 5, 7, 11, 13, 17, 19]; // 1..=20
     let mut max_prime_factor_powers = [0; PRIMES.len()];
 
@@ -353,7 +583,7 @@ fn _5() -> i32 {
             let mut c = 0;
             while x % p == 0 {
                 c += 1;
-                x = x / p;
+                x /= p;
             }
             *t = (*t).max(c);
         }
@@ -366,7 +596,10 @@ fn _5() -> i32 {
         .product()
 }
 
-fn _4() -> i32 {
+/// ```
+/// assert_eq!(project_euler::twenty::_4(), 906609);
+/// ```
+pub fn _4() -> i32 {
     for c in (100..1000).rev() {
         // Modulus maths to create a 6 digit palindrome from a 3 digit number
         let candidate = c * 1000 + (c / 100) + 10 * ((c / 10) % 10) + 100 * (c % 10);
@@ -378,7 +611,7 @@ fn _4() -> i32 {
 
             let other_factor = candidate / factor;
 
-            if 100 <= other_factor && other_factor < 1000 {
+            if (100..1000).contains(&other_factor) {
                 return candidate;
             }
         }
@@ -387,7 +620,10 @@ fn _4() -> i32 {
     panic!("Failed to find ANY palindromes with two 3 digit factors");
 }
 
-fn _3() -> u64 {
+/// ```
+/// assert_eq!(project_euler::twenty::_3(), 6857);
+/// ```
+pub fn _3() -> u64 {
     let mut n = 600851475143;
 
     let mut factor = 3;
@@ -407,7 +643,10 @@ fn _3() -> u64 {
     largest_prime_factor
 }
 
-fn _2() -> i32 {
+/// ```
+/// assert_eq!(project_euler::twenty::_2(), 4613732);
+/// ```
+pub fn _2() -> i32 {
     let mut a = 0;
     let mut b = 1;
     let mut sum = 0;
@@ -427,7 +666,10 @@ fn _2() -> i32 {
     sum
 }
 
-fn _1() -> i32 {
+/// ```
+/// assert_eq!(project_euler::twenty::_1(), 233168);
+/// ```
+pub fn _1() -> i32 {
     let multiples = [3, 5];
 
     let mut total = 0;
@@ -443,74 +685,4 @@ fn _1() -> i32 {
     }
 
     total
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_13() {
-        assert_eq!(_13(), "5537376230");
-    }
-
-    #[test]
-    fn test_12() {
-        assert_eq!(_12(), 76576500);
-    }
-
-    #[test]
-    fn test_11() {
-        assert_eq!(_11(), 70600674);
-    }
-
-    #[test]
-    fn test_1() {
-        assert_eq!(_1(), 233168);
-    }
-
-    #[test]
-    fn test_2() {
-        assert_eq!(_2(), 4613732);
-    }
-
-    #[test]
-    fn test_3() {
-        assert_eq!(_3(), 6857);
-    }
-
-    #[test]
-    fn test_4() {
-        assert_eq!(_4(), 906609);
-    }
-
-    #[test]
-    fn test_5() {
-        assert_eq!(_5(), 232792560);
-    }
-
-    #[test]
-    fn test_6() {
-        assert_eq!(_6(), 25164150);
-    }
-
-    #[test]
-    fn test_7() {
-        assert_eq!(_7(), 104743);
-    }
-
-    #[test]
-    fn test_8() {
-        assert_eq!(_8(), 23514624000);
-    }
-
-    #[test]
-    fn test_9() {
-        assert_eq!(_9(), 31875000);
-    }
-
-    #[test]
-    fn test_10() {
-        assert_eq!(_10(), 142913828922);
-    }
 }
