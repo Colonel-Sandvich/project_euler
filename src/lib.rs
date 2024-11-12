@@ -1,6 +1,9 @@
 #![feature(iter_map_windows)]
 
+use std::iter::once;
+
 pub mod forty;
+pub mod sixty;
 pub mod twenty;
 
 // Attempt at compile time sieve
@@ -38,10 +41,14 @@ pub const fn isqrt(n: usize) -> usize {
     }
 }
 
-pub fn from_digits(v: Vec<usize>) -> usize {
+pub fn from_digits<T>(v: T) -> usize
+where
+    T: IntoIterator<Item = usize>,
+    T::IntoIter: DoubleEndedIterator,
+{
     let mut n = 0;
     let mut carry = 1;
-    for d in v.iter().rev() {
+    for d in v.into_iter().rev() {
         n += carry * d;
         carry *= 10;
     }
@@ -65,4 +72,14 @@ pub fn to_digit_map(mut n: usize) -> [u8; 10] {
         n /= 10;
     }
     digits
+}
+
+pub fn is_prime(n: usize) -> bool {
+    if n == 1 {
+        return false;
+    }
+    if n == 2 {
+        return true;
+    }
+    once(2).chain((3..=isqrt(n)).step_by(2)).all(|d| n % d != 0)
 }

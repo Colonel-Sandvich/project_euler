@@ -1,7 +1,9 @@
+#![allow(dead_code)]
+
 use std::collections::HashSet;
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use project_euler::forty;
+use project_euler::{forty, sixty};
 
 fn problem_23(c: &mut Criterion) {
     let mut group = c.benchmark_group("problem 23");
@@ -54,10 +56,10 @@ fn problem_27(c: &mut Criterion) {
 fn problem_50(c: &mut Criterion) {
     let mut group = c.benchmark_group("problem 50");
     group.bench_function("backtracking with skips", |b| {
-        b.iter(|| black_box(forty::_50_backtracking()))
+        b.iter(|| black_box(sixty::_50_backtracking()))
     });
     group.bench_function("brute force", |b| {
-        b.iter(|| black_box(forty::_50_brute_force()))
+        b.iter(|| black_box(sixty::_50_brute_force()))
     });
     group.finish();
 }

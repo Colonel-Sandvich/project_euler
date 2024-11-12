@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     fs::{self},
     str::FromStr,
     usize,
@@ -7,7 +7,7 @@ use std::{
 
 use itertools::Itertools;
 
-use crate::{from_digits, sieve, to_digit_map, to_digits};
+use crate::{from_digits, is_prime, sieve, to_digits};
 
 /// ```
 /// assert_eq!(project_euler::forty::_21(), 31626);
@@ -342,9 +342,8 @@ pub fn _30() -> usize {
 /// ```
 pub fn _31() -> usize {
     // Classic dynamic programming problem.
-    // If we start from 200p then subtract 20p then we know if we somehow had already made 180p
-    // then we'd have an additional way to make 200p
-    // Let's do this for every coin
+    // The tricky part is iterating through the problem in the right order
+    // to avoid a data dependency problem.
 
     let coins = [1, 2, 5, 10, 20, 50, 100, 200];
 
@@ -361,246 +360,306 @@ pub fn _31() -> usize {
 }
 
 /// ```
-/// assert_eq!(project_euler::forty::_48(), 9110846700);
+/// assert_eq!(project_euler::forty::_32(), 45228);
 /// ```
-pub fn _48() -> usize {
-    // Naive approach: just mod after every operation to keep it overflowing
+pub fn _32() -> usize {
+    let mut pandigital_products = HashSet::new();
 
-    const N: usize = 10_000_000_000;
-    let mut sum = 0;
+    // Smallest valid a,b combo of both 3 digits is 123 * 456 giving 56088 a five digit number
+    // This is too big so we can rule out both being 3 digit, so I cap a at 2 digits
+    for a in 2..100 {
+        for b in 2..10000 {
+            let c = a * b;
 
-    for a in 1..=1000 {
-        let mut b = 1;
-        for _ in 1..=a {
-            b *= a;
-            b %= N;
+            let combined = [a, b, c].iter().map(|n| n.to_string()).join("");
+
+            if combined.len() != 9
+                || combined.contains("0")
+                || combined.as_bytes().iter().unique().count() != 9
+            {
+                continue;
+            }
+
+            pandigital_products.insert(c);
         }
-        sum += b;
-        sum %= N;
     }
 
-    sum
+    pandigital_products.iter().sum()
 }
 
 /// ```
-/// assert_eq!(project_euler::forty::_49(), "296962999629");
+/// assert_eq!(project_euler::forty::_33(), 100);
 /// ```
-pub fn _49() -> String {
-    const N: usize = 10_000;
-    let primes: HashSet<usize> = sieve::<N>()
+pub fn _33() -> usize {
+    let mut matches = vec![];
+    for num in 10..100 {
+        for denum in (num + 1)..100 {
+            let [a, b] = to_digits(num).try_into().unwrap();
+            let [c, d] = to_digits(denum).try_into().unwrap();
+
+            if b == 0 {
+                continue;
+            }
+
+            let (p, q) = if a == c {
+                (b, d)
+            } else if b == c {
+                (a, d)
+            } else if a == d {
+                (b, c)
+            } else if b == d {
+                (a, c)
+            } else {
+                continue;
+            };
+
+            if p as f32 / q as f32 == num as f32 / denum as f32 {
+                matches.push((num, denum));
+            }
+        }
+    }
+
+    let num = matches.iter().map(|(p, _)| p).product();
+    let denum = matches.iter().map(|(_, q)| q).product();
+    let d = gcd(num, denum);
+
+    denum / d
+}
+
+fn gcd(mut a: usize, mut b: usize) -> usize {
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+
+    a
+}
+
+/// ```
+/// assert_eq!(project_euler::forty::_34(), 40730);
+/// ```
+/// 9! = 362880 which is the maximum number you can get per digit
+/// With some trial and error it can be observed that for an 8 digit number the max sum is
+/// 9! * 8 = 2_903_040 which is a 7 digit number so we can place an upper bound to stop searching
+/// at 9_999_999
+pub fn _34() -> usize {
+    (3..10_000_000)
+        .filter(|&n| {
+            n == to_digits(n)
+                .into_iter()
+                .map(|d| (1..=d).product::<usize>())
+                .sum::<usize>()
+        })
+        .sum()
+}
+
+/// ```
+/// assert_eq!(project_euler::forty::_35(), 55);
+/// ```
+pub fn _35() -> usize {
+    const N: usize = 1_000_000;
+    let prime_sieve = sieve::<N>();
+
+    let primes: Vec<_> = prime_sieve
         .into_iter()
         .enumerate()
-        .filter(|(_, x)| *x)
+        .filter(|&(_, x)| x)
         .map(|(i, _)| i)
-        .filter(|&i| i >= 1000 && i != 1487) // 1487 Given
         .collect();
 
-    for &p in primes.iter() {
-        if p >= 3340 {
-            // Then p + 2 * 3330 > 10_000
+    let mut circular_primes = HashSet::new();
+
+    for prime in primes {
+        let mut digits = VecDeque::from(to_digits(prime));
+        let rotations: Vec<_> = (0..digits.len())
+            .map(|_| {
+                let d = digits.pop_front().unwrap();
+                digits.push_back(d);
+                from_digits(digits.clone())
+            })
+            .collect();
+
+        if rotations.iter().all(|p| prime_sieve[*p]) {
+            for circular_prime in rotations {
+                circular_primes.insert(circular_prime);
+            }
+        }
+    }
+
+    circular_primes.len()
+}
+
+/// ```
+/// assert_eq!(project_euler::forty::_36(), 872187);
+/// ```
+pub fn _36() -> usize {
+    (1..1_000_000)
+        .filter(|&x| {
+            let digits = to_digits(x);
+            let mut reverse = digits.clone();
+            reverse.reverse();
+            if digits != reverse {
+                return false;
+            }
+
+            let mut n = x;
+            let mut binary_reverse = vec![];
+            while n > 0 {
+                binary_reverse.push(n % 2);
+                n /= 2;
+            }
+
+            if binary_reverse[0] == 0 {
+                // Trailing zero
+                return false;
+            }
+
+            let binary = binary_reverse.clone();
+            binary_reverse.reverse();
+
+            if binary != binary_reverse {
+                return false;
+            }
+
+            true
+        })
+        .sum()
+}
+
+/// ```
+/// assert_eq!(project_euler::forty::_37(), 748317);
+/// ```
+pub fn _37() -> usize {
+    let mut truncatable_primes = vec![];
+
+    recursive_step(&mut VecDeque::new(), &mut truncatable_primes);
+
+    truncatable_primes.iter().sum()
+}
+
+/// Here we try to grow the number as large as we can with digits at the front while keeping the
+/// number prime any number we stop growing will be a left-truncatble prime because of this.
+/// When we can no longer grow it we check if it's right-truncatable
+fn recursive_step(digits: &mut VecDeque<usize>, truncatable_primes: &mut Vec<usize>) {
+    for d in [1, 2, 3, 5, 7, 9] {
+        digits.push_front(d);
+        let number = from_digits(digits.clone());
+        if !is_prime(number) {
+            digits.pop_front();
             continue;
         }
 
-        let mut perms = p
-            .to_string()
-            .chars()
-            .permutations(4)
-            .unique()
-            .map(|q| q.iter().collect::<String>().parse::<usize>().unwrap())
-            .filter(|&q| q > 1000 && q != p)
-            .collect::<Vec<_>>();
-
-        perms.dedup();
-
-        let q = p + 3330;
-        let v = q + 3330;
-
-        if perms.contains(&q) && perms.contains(&v) {
-            if primes.contains(&q) && primes.contains(&v) {
-                return format!("{}{}{}", p, q, v);
+        let mut candidate = true;
+        let mut copy = number / 10;
+        while copy > 0 {
+            if !is_prime(copy) {
+                candidate = false;
             }
+            copy /= 10;
         }
+
+        if candidate && number > 10 {
+            truncatable_primes.push(number);
+        }
+
+        recursive_step(digits, truncatable_primes);
     }
 
-    panic!("Failed to find other 4 digit number with this property");
+    // We're done growing this number if we reached here, so backtrack a digit and continue the search.
+    // e.g. digits = 113 has been explored so go to digits = 213
+    digits.pop_front();
 }
 
 /// ```
-/// assert_eq!(project_euler::forty::_50_backtracking(), 997651);
+/// assert_eq!(project_euler::forty::_38(), 932718654);
 /// ```
-/// ~3ms
-pub fn _50_backtracking() -> usize {
-    const N: usize = 1_000_000;
-    let prime_sieve = sieve::<N>();
+pub fn _38() -> usize {
+    let mut max = 0;
 
-    let primes: Vec<_> = prime_sieve
-        .into_iter()
-        .enumerate()
-        .filter(|&(_, x)| x)
-        .map(|(i, _)| i)
-        .collect();
-
-    let mut head = 0;
-    let mut tail = 0;
-    let mut carry_tail = 0;
-
-    let mut sum = 0;
-    let mut carry = 0;
-
-    let mut max_sum = 0;
-    let mut max_len = 0;
-
-    loop {
-        carry += primes[carry_tail];
-        let new_sum = sum + carry;
-        let len = carry_tail - head;
-        if len > max_len && new_sum < N && prime_sieve[new_sum] {
-            sum = new_sum;
-            carry = 0;
-            tail = carry_tail;
-
-            max_len = len;
-            max_sum = sum;
-        }
-
-        carry_tail += 1;
-
-        if new_sum >= N || carry_tail >= primes.len() {
-            sum = match sum.checked_sub(primes[head]) {
-                Some(sum) => sum,
-                None => break,
-            };
-
-            carry = 0;
-            head += 1;
-            carry_tail = tail + 1;
-
-            if head + max_len >= primes.len() {
+    for n in 1..10_000 {
+        let mut digits = vec![];
+        for i in 1.. {
+            if digits.len() >= 9 {
                 break;
             }
+
+            digits.append(&mut to_digits(n * i));
         }
+
+        if digits.len() > 9 {
+            continue;
+        }
+
+        let number = from_digits(digits.clone());
+        if number < max {
+            continue;
+        }
+
+        if digits.contains(&0) || digits.iter().unique().count() != 9 {
+            continue;
+        }
+
+        max = number;
     }
 
-    max_sum
+    max
 }
 
 /// ```
-/// assert_eq!(project_euler::forty::_50_brute_force(), 997651);
+/// assert_eq!(project_euler::forty::_39(), 840);
 /// ```
-/// ~4ms
-pub fn _50_brute_force() -> usize {
-    const N: usize = 1_000_000;
-    let prime_sieve = sieve::<N>();
+pub fn _39() -> usize {
+    let mut maximising_p = 0;
+    let mut max_count = 0;
 
-    let primes: Vec<_> = prime_sieve
-        .into_iter()
-        .enumerate()
-        .filter(|&(_, x)| x)
-        .map(|(i, _)| i)
-        .collect();
+    for p in (3 + 4 + 5)..=1000 {
+        let mut count = 0;
+        for a in 1..=p / 2 {
+            for b in a..=p / 2 {
+                let c = p - a - b;
 
-    let mut max_len = 0;
-    let mut max_sum = 0;
-
-    for (i, &p) in primes.iter().enumerate() {
-        let mut sum = p;
-        for (j, &q) in primes.iter().enumerate().skip(i + 1) {
-            sum += q;
-            if sum >= N {
-                break;
-            }
-            if prime_sieve[sum] {
-                let len = j - i;
-                if len > max_len {
-                    max_len = len;
-                    max_sum = sum;
-                }
-            }
-        }
-    }
-
-    max_sum
-}
-
-/// ```
-/// assert_eq!(project_euler::forty::_51(), 121313);
-/// ```
-pub fn _51() -> usize {
-    const N: usize = 1_000_000;
-    let primes: BTreeSet<_> = sieve::<N>()
-        .into_iter()
-        .enumerate()
-        .filter(|&(i, x)| i > 10_000 && x)
-        .map(|(i, _)| i)
-        .collect();
-
-    let mut digits_to_change = 2;
-
-    loop {
-        for &p in primes.iter() {
-            let digit_map = to_digit_map(p);
-
-            let wildcard_digit = match digit_map
-                .iter()
-                .enumerate()
-                .filter(|&(_, d)| *d >= digits_to_change)
-                .next()
-            {
-                Some(x) => x.0,
-                None => continue,
-            };
-
-            let generated_numbers = (0..=9)
-                .map(|i| {
-                    let mut digits = to_digits(p);
-                    for d in &mut digits
-                        .iter_mut()
-                        .filter(|d| **d == wildcard_digit)
-                        .take(digits_to_change as usize)
-                    {
-                        *d = i;
-                    }
-
-                    digits
-                })
-                .map(from_digits)
-                .collect::<Vec<_>>();
-
-            let generated_that_are_prime: Vec<_> = generated_numbers
-                .iter()
-                .filter(|&num| primes.contains(num))
-                .collect();
-            if generated_that_are_prime.len() == 8 {
-                let [first, second] = generated_that_are_prime[0..=1].try_into().unwrap();
-                // Just incase the first number generated change it's first digit to 0
-                // e.g.     040609, 141619, 242629,...
-                if to_digits(*first).len() == to_digits(*second).len() {
-                    return *first;
+                if a * a + b * b == c * c {
+                    count += 1;
                 }
             }
         }
 
-        digits_to_change += 1;
+        if count > max_count {
+            max_count = count;
+            maximising_p = p;
+        }
     }
+
+    maximising_p
 }
 
 /// ```
-/// assert_eq!(project_euler::forty::_52(), 142857);
+/// assert_eq!(project_euler::forty::_40(), 210);
 /// ```
-/// Actually a beautiful result relating to how 1/7 has a recurring decimal of 142857
-/// and 2/7 = 0.285714 ...
-/// No idea how to prove this is the smallest number of its from tho
-pub fn _52() -> usize {
-    'a: for x in 1.. {
-        let digit_map = to_digit_map(x);
-        for i in 2..=6 {
-            if digit_map != to_digit_map(i * x) {
-                continue 'a;
-            }
+pub fn _40() -> usize {
+    let mut digit = 1;
+    let mut target = 1;
+
+    let mut length_of_num = 1;
+    let mut length_helper = 10;
+
+    let mut product = 1;
+
+    for num in 1..=1_000_000 {
+        if num == length_helper {
+            length_of_num += 1;
+            length_helper *= 10;
         }
 
-        return x;
+        if digit + length_of_num > target {
+            let digits = to_digits(num);
+
+            product *= digits[target - digit];
+
+            target *= 10;
+        }
+
+        digit += length_of_num;
     }
 
-    unreachable!();
+    product
 }
